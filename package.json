@@ -1,0 +1,45 @@
+{
+  "name": "media-library-server",
+  "version": "0.1.0",
+  "description": "an express server for media-library",
+  "main": "./lib/server",
+  "scripts": {
+    "test": "gulp test"
+  },
+  "keywords": [
+    "media",
+    "mp3",
+    "audio",
+    "library",
+    "id3",
+    "music"
+  ],
+  "author": {
+    "name": "Guillaume Lecomte",
+    "email": "guillaume86@gmail.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/guillaume86/media-library.git"
+  },
+  "license": "ISC",
+  "devDependencies": {
+    "coffee-script": "^1.7.1",
+    "gulp": "^3.8.7",
+    "gulp-coffee": "^2.1.1",
+    "gulp-mocha": "^1.0.0",
+    "gulp-util": "^3.0.0",
+    "should": "^4.0.4",
+    "supertest": "^0.15.0"
+  },
+  "dependencies": {
+    "body-parser": "^1.9.2",
+    "cors": "^2.5.2",
+    "errorhandler": "^1.2.2",
+    "express": "^4.10.2",
+    "lodash": "^2.4.1",
+    "media-library": "^0.1.0",
+    "morgan": "^1.5.0",
+    "send": "^0.10.1"
+  }
+}
