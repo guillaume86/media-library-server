@@ -3,7 +3,7 @@ supertest = require 'supertest'
 server = require('../lib/server')
 
 config =
-  databasePath: './test/'
+  dataPath: './test/'
   paths: ['./test/']
 
 app = server.standalone(config)

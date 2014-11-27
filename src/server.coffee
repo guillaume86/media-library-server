@@ -92,107 +92,93 @@ handlers =
   scan: (req, res, next) ->
     res.writeHead(200, {'Content-Type': 'text/plain'})
     library.scan()
-      .progress((track) ->
-        console.log('scan progress: %s', track.path)
-        res.write(track.path + '\n')
-      )
-      .then((count) ->
-        res.write('scanned tracks: ' + count)
-        res.end()
-      )
-      .fail((err) ->
-        console.error('scan error', err)
-        next(err)
-      )
-      .done()
+    .on('track', (track) ->
+      console.log('scan progress: %s', track.path)
+      res.write(track.path + '\n')
+    )
+    .on('done', (tracks) ->
+      res.write('scanned tracks: ' + tracks.length)
+      res.end()
+    )
+    .on('error', (err) ->
+      console.error('scan error', err)
+      next(err)
+    )
 
   tracks: (req, res, next) ->
-    library.tracks(req.query)
-      .then((tracks) ->
-        res.send(mapTrack(track, req) for track in (tracks || []))
-      )
-      .fail(next)
-      .done()
+    library.tracks(req.query, (err, tracks) ->
+      return next(err) if err
+      res.send(mapTrack(track, req) for track in (tracks || []))
+    )
 
   albums: (req, res, next) ->
-    library.albums(req.query)
-      .then((albums) ->
-        res.send(mapAlbum(album, req) for album in (albums || []))
-      )
-      .fail(next)
-      .done()
+    library.albums(req.query, (err, albums) ->
+      return next(err) if err
+      res.send(mapAlbum(album, req) for album in (albums || []))
+    )
 
   artists: (req, res, next) ->
-    library.artists(req.query)
-      .then((artists) ->
-        res.send(mapArtist(artist, req) for artist in (artists || []))
-      )
-      .fail(next)
-      .done()
+    library.artists(req.query, (err, artists) ->
+      return next(err) if err
+      res.send(mapArtist(artist, req) for artist in (artists || []))
+    )
 
   find: (req, res, next) ->
-    library.findTracks({ artist: req.query.artist, title: req.query.title })
-      .then((tracks) ->
-        res.send(mapTrack(track, req) for track in tracks)
-      )
-      .fail(next)
-      .done()
+    library.findTracks({ artist: req.query.artist, title: req.query.title }, (err, tracks) ->
+      return next(err) if err
+      res.send(mapTrack(track, req) for track in tracks)
+    )
 
   play: (req, res, next) ->
-    library.dbfind.track({ _id: req.params.id })
-      .then((results) ->
-        if !results.length
-          res.statusCode = 404
-          res.end()
-          return
-          
-        send(req, results[0].path)
-        .on('error', next)
-        .pipe(res)
-      )
-      .fail(next)
-      .done()
+    library.findTracks({ _id: req.params.id }, (err, results) ->
+      return next(err) if err
+      
+      if !results.length
+        res.statusCode = 404
+        res.end()
+        return
+        
+      send(req, results[0].path)
+      .on('error', next)
+      .pipe(res)
+    )
       
   trackcover: (req, res, next) ->
-    library.dbfind.track({ _id: req.params.id })
-      .then((results) ->
-        if !results.length
-          res.statusCode = 404
-          res.end()
-          return
-        return results[0]
-      )
-      .then((track) ->
-        # todo: use album cover by default (return same url for same image)
-        cover = null
-        if track.coverpath
-          cover = track.coverpath
-        if !cover
-          dirpath = dirname(track.path)
-          cover = getCoverPath(dirpath)
-          # save cover path in database
-          if cover
-            library.db.track
-            .update(
-              { _id: track._id },
-              { $set: { coverpath: cover } },
-              { },
-              (err, num) ->
-                throw err if err
-                console.log('track cover updated')
-            )
-        
-        if !cover
-          res.statusCode = 404
-          res.end()
-          return
-        
-        send(req, cover, maxAge: 1000*60*60*24*30)
-        .on('error', next)
-        .pipe(res)
-      )
-      .fail(next)
-      .done()
+    library.findTracks({ _id: req.params.id }, (err, results) ->
+      return next(err) if err
+      if !results.length
+        res.statusCode = 404
+        res.end()
+        return
+      track = results[0]
+      # todo: use album cover by default (return same url for same image)
+      cover = null
+      if track.coverpath
+        cover = track.coverpath
+      if !cover
+        dirpath = dirname(track.path)
+        cover = getCoverPath(dirpath)
+        # save cover path in database
+        if cover
+          library.db
+          .update(
+            { _id: track._id },
+            { $set: { coverpath: cover } },
+            { },
+            (err, num) ->
+              throw err if err
+              console.log('track cover updated')
+          )
+      
+      if !cover
+        res.statusCode = 404
+        res.end()
+        return
+      
+      send(req, cover, maxAge: 1000*60*60*24*30)
+      .on('error', next)
+      .pipe(res)
+    )
       
   albumcover: (req, res, next) ->
     handlers.trackcover(req, res, next)
