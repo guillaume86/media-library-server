@@ -1,6 +1,6 @@
 {
   "name": "media-library-server",
-  "version": "0.1.0",
+  "version": "1.0.6",
   "description": "an express server for media-library",
   "main": "./lib/server",
   "scripts": {

@@ -214,15 +214,14 @@ module.exports =
     return app
   
   setup: (app, config, path) ->
-    console.log('setting up app', app)
     basePath = path || ''
     library = new MediaLibary(config)
     app.get('/status', handlers.status)
     app.get('/scan', handlers.scan)
     app.get('/tracks', handlers.tracks)
-    app.get('/tracks/:id/cover', handlers.trackcover)
     app.get('/albums', handlers.albums)
-    app.get('/albums/:id/cover', handlers.albumcover)
     app.get('/artists', handlers.artists)
     app.get('/find', handlers.find)
+    app.get('/tracks/:id/cover', handlers.trackcover)
+    app.get('/albums/:id/cover', handlers.albumcover)
     app.get('/play/:id', handlers.play)
