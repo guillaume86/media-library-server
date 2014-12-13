@@ -5,6 +5,7 @@ server = require('../lib/server')
 config =
   dataPath: './test/'
   paths: ['./test/']
+  disableLogs: true
 
 app = server.standalone(config)
 request = supertest(app)

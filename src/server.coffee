@@ -7,44 +7,30 @@ MediaLibary = require 'media-library'
 library = null
 basePath = null
 
-imagefileRegex = /\.(?:jpg|jpeg|gif|bmp|png)$/i
-
-getCoverPath = (dirpath) ->
-  files = _.sortBy(
-    fs.readdirSync(dirpath)
-    .filter((name) -> imagefileRegex.test(name))
-    .map((name) ->
-      path = joinPath(dirpath, name)
-      return (
-        name: name
-        path: path
-        stats: fs.statSync(path)
-      )
-    )
-  , 'size')
-  .reverse()
-  # todo: order by cover etc
-  # console.log(files)
-  files[0]?.path
-
-getCoverPath = _.memoize(getCoverPath)
-
-coverurls = {}
+getCover = (covers, size) ->
+  covers = _.sortBy(covers, (c) -> c.size)
+  if size == 'small'
+    return covers[0].name
+  if size == 'medium'
+    return covers[Math.ceil(covers.length/2) - 1].name
+  if size == 'large'
+    return covers[covers.length - 1].name
+  return covers[0].name
 
 mapTrack = (track, req) ->
-  getCoverUrl = -> [
+  getCoverUrl = (size) -> [
     req.protocol + '://' + req.get('host'),
     basePath, 'tracks', track._id,
     'cover'
+    size
   ].join('/')
   
-  coverurl = null
-  if track.coverpath
-    coverurl = coverurls[track.coverpath]
-    if !coverurl
-      coverurl = coverurls[track.coverpath] = getCoverUrl()
-  else
-    coverurl = getCoverUrl()
+  images = null
+  if track.covers
+    images =
+      small: getCoverUrl('small')
+      medium: getCoverUrl('medium')
+      large: getCoverUrl('large')
   
   return (
     title: track.title
@@ -56,10 +42,7 @@ mapTrack = (track, req) ->
       req.protocol + '://' + req.get('host'),
       basePath, 'play', track._id
     ].join('/')
-    images:
-      small: coverurl
-      medium: coverurl
-      large: coverurl
+    images: images
     $trackid: track._id
   )
 
@@ -67,10 +50,11 @@ mapArtist = (artist, req) ->
   artist
 
 mapAlbum = (album, req) ->
-  cover = [
+  getCoverUrl = (size) -> [
     req.protocol + '://' + req.get('host'),
     basePath, 'albums', album.tracks[0],
     'cover'
+    size
   ].join('/')
   
   return (
@@ -79,9 +63,9 @@ mapAlbum = (album, req) ->
     trackids: album.tracks
     year: album.year
     images:
-      small: cover
-      medium: cover
-      large: cover
+      small: getCoverUrl('small')
+      medium: getCoverUrl('medium')
+      large: getCoverUrl('large')
   )
   
 
@@ -103,6 +87,16 @@ handlers =
     .on('error', (err) ->
       console.error('scan error', err)
       next(err)
+    )
+
+  scanCovers: (req, res, next) ->
+    res.writeHead(200, {'Content-Type': 'text/plain'})
+    library.scanCovers((err) ->
+      if err?
+        console.error('scan covers error', err)
+        return next(err)
+      res.write('scan done')
+      res.end()
     )
 
   tracks: (req, res, next) ->
@@ -130,7 +124,7 @@ handlers =
     )
 
   play: (req, res, next) ->
-    library.findTracks({ _id: req.params.id }, (err, results) ->
+    library.tracks({ _id: req.params.id }, (err, results) ->
       return next(err) if err
       
       if !results.length
@@ -144,7 +138,8 @@ handlers =
     )
       
   trackcover: (req, res, next) ->
-    library.findTracks({ _id: req.params.id }, (err, results) ->
+    size = req.params.size
+    library.tracks({ _id: req.params.id }, (err, results) ->
       return next(err) if err
       if !results.length
         res.statusCode = 404
@@ -153,27 +148,16 @@ handlers =
       track = results[0]
       # todo: use album cover by default (return same url for same image)
       cover = null
-      if track.coverpath
-        cover = track.coverpath
-      if !cover
-        dirpath = dirname(track.path)
-        cover = getCoverPath(dirpath)
-        # save cover path in database
-        if cover
-          library.db
-          .update(
-            { _id: track._id },
-            { $set: { coverpath: cover } },
-            { },
-            (err, num) ->
-              throw err if err
-              console.log('track cover updated')
-          )
-      
+      if track.covers
+        cover = getCover(track.covers, size)
+        
       if !cover
         res.statusCode = 404
         res.end()
         return
+        
+      # full path
+      cover = joinPath(dirname(track.path), cover)
       
       send(req, cover, maxAge: 1000*60*60*24*30)
       .on('error', next)
@@ -218,10 +202,11 @@ module.exports =
     library = new MediaLibary(config)
     app.get('/status', handlers.status)
     app.get('/scan', handlers.scan)
+    app.get('/scan-covers', handlers.scanCovers)
     app.get('/tracks', handlers.tracks)
     app.get('/albums', handlers.albums)
     app.get('/artists', handlers.artists)
     app.get('/find', handlers.find)
-    app.get('/tracks/:id/cover', handlers.trackcover)
-    app.get('/albums/:id/cover', handlers.albumcover)
+    app.get('/tracks/:id/cover/:size', handlers.trackcover)
+    app.get('/albums/:id/cover/:size', handlers.albumcover)
     app.get('/play/:id', handlers.play)
